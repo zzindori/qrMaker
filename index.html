@@ -93,7 +93,7 @@
     justify-content: center;
     width: 100%;
   }
-  #qrHolder img, #qrHolder canvas, #qrHolder table { width: 100%; height: auto; max-width: 95vmin; max-height: 75vh; }
+  #qrHolder img, #qrHolder canvas, #qrHolder table { width: 100%; height: auto; }
  
   .nav-bar {
     display: flex;
@@ -299,7 +299,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     if (!window.__qrData || window.__qrData.length === 0) return;
     currentIndex = index;
     qrHolder.innerHTML = "";
-    var qrSize = Math.min(window.innerWidth - 32, window.innerHeight * 0.7, 640);
+    var qrSize = Math.min(window.innerWidth - 32, window.innerHeight * 0.85);
     qrInstance = new QRCode(qrHolder, {
       text: window.__qrData[index],
       width: qrSize,
