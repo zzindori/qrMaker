@@ -122,7 +122,7 @@
     <label for="densitySelect" style="font-size:13px; color:#666;">스캔 기기:</label>
     <select id="densitySelect">
       <option value="2900">Android / Chrome (고밀도, QR 적게)</option>
-      <option value="1200">iOS Safari (저밀도, QR 많이 — 인식 잘 됨)</option>
+      <option value="1100">iOS Safari (저밀도, QR 많이 — 인식 잘 됨)</option>
     </select>
   </div>
   <div class="btn-row">
@@ -159,7 +159,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   // ---- 설정값 ----
   // 스캔할 기기에 따라 QR 밀도를 선택: Android/Chrome은 네이티브 BarcodeDetector라
   // 고밀도(2900, Python 원본과 동일 기준)도 잘 읽지만, iOS Safari는 순수 JS 디코더라
-  // 촘촘한 QR을 잘 못 읽어서 저밀도(1200)로 QR 장수를 늘리는 대신 인식률을 높임.
+  // 촘촘한 QR을 잘 못 읽어서 저밀도(1100)로 QR 장수를 늘리는 대신 인식률을 높임.
   var HEADER_SIZE = 26; // "[999/999:xxxxxxxx]" 형태 여유치
   function getMaxBytes() {
     var sel = document.getElementById("densitySelect");
