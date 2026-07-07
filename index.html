@@ -81,6 +81,7 @@
     align-items: center;
     justify-content: center;
     height: calc(100vh - 120px);
+    overflow-y: auto;
     background: #000;
     border-radius: 6px;
   }
@@ -299,7 +300,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     if (!window.__qrData || window.__qrData.length === 0) return;
     currentIndex = index;
     qrHolder.innerHTML = "";
-    var qrSize = Math.min(window.innerWidth - 32, window.innerHeight * 0.85);
+    var qrSize = window.innerWidth - 32;
     qrInstance = new QRCode(qrHolder, {
       text: window.__qrData[index],
       width: qrSize,
