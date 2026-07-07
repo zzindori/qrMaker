@@ -91,8 +91,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 100%;
   }
-  #qrHolder img, #qrHolder canvas, #qrHolder table { max-width: 80vmin; max-height: 60vh; }
+  #qrHolder img, #qrHolder canvas, #qrHolder table { width: 100%; height: auto; max-width: 95vmin; max-height: 75vh; }
  
   .nav-bar {
     display: flex;
@@ -298,10 +299,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     if (!window.__qrData || window.__qrData.length === 0) return;
     currentIndex = index;
     qrHolder.innerHTML = "";
+    var qrSize = Math.min(window.innerWidth - 32, window.innerHeight * 0.7, 640);
     qrInstance = new QRCode(qrHolder, {
       text: window.__qrData[index],
-      width: 320,
-      height: 320,
+      width: qrSize,
+      height: qrSize,
       typeNumber: 0,   // 0이면 라이브러리가 데이터 크기 보고 QR 버전을 자동으로 올림 (필수! 없으면 버전4로 고정돼서 80바이트 넘으면 무조건 overflow)
       correctLevel: QRCode.CorrectLevel.L
     });
