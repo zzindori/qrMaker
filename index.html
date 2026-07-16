@@ -121,6 +121,7 @@
   <div class="btn-row" style="align-items:center;">
     <label for="densitySelect" style="font-size:13px; color:#666;">스캔 기기:</label>
     <select id="densitySelect">
+      <option value="800" selected>moncam 자동캡처 (초저밀도, 자동재생용)</option>
       <option value="2900">Android / Chrome (고밀도, QR 적게)</option>
       <option value="1100">iOS Safari (저밀도, QR 많이 — 인식 잘 됨)</option>
     </select>
@@ -142,7 +143,15 @@
       <div class="counter" id="counterLabel">- / -</div>
       <button id="btnNext" disabled>다음 ▶</button>
     </div>
-    <div class="hint">← → 키보드로도 이동 가능</div>
+    <div class="btn-row" style="justify-content:center;">
+      <button id="btnAutoplay">▶ 자동재생</button>
+    </div>
+    <div class="btn-row" style="justify-content:center; align-items:center;">
+      <label for="jumpInput" style="font-size:13px; color:#666;">번호로 이동:</label>
+      <input id="jumpInput" type="number" min="1" style="width:80px;" placeholder="예: 47" />
+      <button id="btnJump">이동</button>
+    </div>
+    <div class="hint">← → 키보드로도 이동 가능 · 자동재생은 끝까지 가면 처음부터 반복<br>moncam 화면에 뜬 "안됨: N, N..." 번호를 여기에 입력하면 바로 그 QR로 이동</div>
   </div>
 </div>
  
@@ -160,11 +169,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   // 스캔할 기기에 따라 QR 밀도를 선택: Android/Chrome은 네이티브 BarcodeDetector라
   // 고밀도(2900, Python 원본과 동일 기준)도 잘 읽지만, iOS Safari는 순수 JS 디코더라
   // 촘촘한 QR을 잘 못 읽어서 저밀도(1100)로 QR 장수를 늘리는 대신 인식률을 높임.
-  var HEADER_SIZE = 26; // "[999/999:xxxxxxxx]" 형태 여유치
+  var HEADER_SIZE = 40; // "[999/999:xxxxxxxxxxxxxxxx:xxxxxxxx]" 형태 여유치 (조각별 체크섬 포함)
   function getMaxBytes() {
     var sel = document.getElementById("densitySelect");
-    return sel ? parseInt(sel.value, 10) : 2900;
+    return sel ? parseInt(sel.value, 10) : 800;
   }
+  var AUTOPLAY_INTERVAL_MS = 600;
+  var autoplayTimer = null;
   function getChunkBytes() {
     return getMaxBytes() - HEADER_SIZE;
   }
@@ -225,6 +236,13 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   function makeHash16(str) {
     return sha256(str).slice(0, 16);
   }
+
+  // 조각 하나하나가 제대로 읽혔는지 그 자리에서 검증하기 위한 짧은 체크섬.
+  // 스캔 중 한 조각이 잘못 읽혀도 즉시 걸러내고, 마지막 전체 조립 시
+  // "다 모았는데 알고 보니 하나 틀림" 상황이 원천적으로 생기지 않게 함.
+  function makeChunkHash8(str) {
+    return sha256(str).slice(0, 8);
+  }
  
   function utf8ByteLength(str) {
     return new TextEncoder().encode(str).length;
@@ -251,8 +269,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     return String(n).padStart(3, "0");
   }
  
-  function makeHeader(index, total, hashStr) {
-    return "[" + pad3(index) + "/" + pad3(total) + ":" + hashStr + "]";
+  function makeHeader(index, total, hashStr, chunkHashStr) {
+    return "[" + pad3(index) + "/" + pad3(total) + ":" + hashStr + ":" + chunkHashStr + "]";
   }
  
   // ---- DOM 참조 ----
@@ -279,6 +297,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   }
  
   function generateQR() {
+    stopAutoplay();
     var text = textInput.value.trim();
     if (!text) { alert("텍스트를 입력해줘."); return; }
  
@@ -296,14 +315,20 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     progressBar.value = 0;
  
     // 헤더 붙인 실제 데이터 미리 계산 (렌더링은 뷰어 탭에서 지연 생성)
+    // 청크가 많으면(수백~수천 개) 한 줄씩 로그를 쌓는 게 아니라
+    // "남은 개수"만 갱신해서 브라우저가 버벅이지 않게 함.
     window.__qrData = [];
+    var progressLine = document.createElement("div");
+    logOutput.appendChild(progressLine);
     for (var i = 0; i < total; i++) {
-      var header = makeHeader(i + 1, total, hash);
+      var chunkHash = makeChunkHash8(chunks[i]);
+      var header = makeHeader(i + 1, total, hash, chunkHash);
       var data = header + chunks[i];
       window.__qrData.push(data);
-      log("[" + (i + 1) + "/" + total + "] " + chunks[i].length + "자 / " + utf8ByteLength(data) + "bytes");
       progressBar.value = i + 1;
+      progressLine.textContent = "생성 중... 남음 " + (total - i - 1) + "개";
     }
+    progressLine.remove();
     log("\n✓ 완료! 'QR 보기' 탭에서 확인해줘.");
  
     currentIndex = 0;
@@ -354,6 +379,37 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
  
   function goPrev() { if (currentIndex > 0) showQR(currentIndex - 1); }
   function goNext() { if (window.__qrData && currentIndex < window.__qrData.length - 1) showQR(currentIndex + 1); }
+
+  function jumpToNumber() {
+    if (!window.__qrData || window.__qrData.length === 0) return;
+    var n = parseInt(document.getElementById("jumpInput").value, 10);
+    if (!n || n < 1 || n > window.__qrData.length) return;
+    stopAutoplay();
+    showQR(n - 1);
+  }
+
+  function stopAutoplay() {
+    if (autoplayTimer !== null) {
+      clearInterval(autoplayTimer);
+      autoplayTimer = null;
+      var btn = document.getElementById("btnAutoplay");
+      if (btn) btn.textContent = "▶ 자동재생";
+    }
+  }
+
+  function toggleAutoplay() {
+    if (autoplayTimer !== null) {
+      stopAutoplay();
+      return;
+    }
+    if (!window.__qrData || window.__qrData.length === 0) return;
+    document.getElementById("btnAutoplay").textContent = "■ 정지";
+    autoplayTimer = setInterval(function () {
+      // 끝까지 가면 처음으로 돌아가 계속 반복 (스캐너가 놓친 조각도 다음 바퀴에 다시 잡히게)
+      var next = (currentIndex + 1) % window.__qrData.length;
+      showQR(next);
+    }, AUTOPLAY_INTERVAL_MS);
+  }
  
   // ---- 탭 전환 ----
   function switchTab(name) {
@@ -369,6 +425,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
   });
  
   document.getElementById("btnGenerate").addEventListener("click", generateQR);
+  document.getElementById("btnAutoplay").addEventListener("click", toggleAutoplay);
   document.getElementById("btnReset").addEventListener("click", function () {
     textInput.value = "";
     infoLabel.textContent = "";
@@ -380,6 +437,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
  
   btnPrev.addEventListener("click", goPrev);
   btnNext.addEventListener("click", goNext);
+  document.getElementById("btnJump").addEventListener("click", jumpToNumber);
+  document.getElementById("jumpInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") jumpToNumber();
+  });
  
   document.addEventListener("keydown", function (e) {
     if (!document.getElementById("tab-view").classList.contains("active")) return;
